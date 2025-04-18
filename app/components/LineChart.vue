@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VisXYContainer, VisGroupedBar, VisAxis, VisCrosshair, VisTooltip } from '@unovis/vue'
+import { VisXYContainer, VisLine, VisArea, VisAxis, VisCrosshair, VisTooltip } from '@unovis/vue'
 import type { PropType } from 'vue'
 import { computed, useTemplateRef } from 'vue'
 import { useElementSize } from '@vueuse/core'
@@ -82,18 +82,23 @@ const template = (d: ChartDataItem): string => `${d.label}: ${formatNumber(d.val
       :class="height"
       :width="width"
     >
-      <VisGroupedBar
+      <VisLine
         :x="x"
         :y="y"
         :color="`var(${colorVar})`"
-        :direction="horizontal ? 'horizontal' : 'vertical'"
+      />
+      <VisArea
+        :x="x"
+        :y="y"
+        :color="`var(${colorVar})`"
+        :opacity="0.1"
       />
       <VisAxis
-        :type="horizontal ? 'y' : 'x'"
-        :tick-format="(i: number) => horizontal ? chartData[i]?.label : chartData[i]?.label || ''"
+        type="x"
+        :tick-format="(i: number) => chartData[i]?.label || ''"
       />
       <VisAxis
-        :type="horizontal ? 'x' : 'y'"
+        type="y"
         :tick-format="(value: number) => formatNumber(value)"
       />
       <VisCrosshair

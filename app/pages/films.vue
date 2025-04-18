@@ -25,8 +25,10 @@
       </template>
 
       <UTable
-        :columns="columns"
-        :rows="films"
+        ref="table"
+        v-model:pagination="pagination"
+        :data="films"
+        :columns="filmTableConfig.columns"
         :loading="loading"
         class="mt-4"
         :ui="{
@@ -36,6 +38,7 @@
           th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
           td: 'border-b border-(--ui-border)'
         }"
+        :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
       >
         <template #loading-state>
           <div class="flex items-center justify-center p-6">
@@ -116,9 +119,35 @@
   </UContainer>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+<script setup lang="ts">
+import { ref, computed, onMounted, h, useTemplateRef } from 'vue'
+import { getPaginationRowModel } from '@tanstack/vue-table'
+import type { TableColumn } from '@nuxt/ui'
+
+// Define Film row type
+interface Film {
+  title: string
+  release_year: number
+  rating: string
+  length: number
+  rental_rate: number
+}
+
+// Table columns configuration
+const filmTableConfig = {
+  columns: [
+    { accessorKey: 'title', header: 'Title' },
+    { accessorKey: 'release_year', header: 'Year' },
+    { id: 'rating', accessorKey: 'rating', header: 'Rating', cell: ({ row }) => h('UBadge', {}, { default: () => row.getValue('rating') }) },
+    { accessorKey: 'length', header: 'Length (min)' },
+    { id: 'rental_rate', accessorKey: 'rental_rate', header: 'Rental Rate', cell: ({ row }) => `$${row.getValue('rental_rate')}` },
+    { id: 'actions', header: '', cell: ({ row }) => h('UButton', { color: 'primary', variant: 'ghost', icon: 'i-lucide-eye', onClick: () => viewFilmDetails(row.original) }) }
+  ] as TableColumn<Film>[]
+}
+
+// Table ref and pagination state
+const table = useTemplateRef('table')
+const pagination = ref({ pageIndex: 0, pageSize: 10 })
 
 const api = useApi()
 
@@ -146,42 +175,6 @@ const categoryOptions = computed(() => {
   ]
 })
 
-// Table columns
-const columns = [
-  {
-    key: 'title',
-    label: 'Title'
-  },
-  {
-    key: 'release_year',
-    label: 'Year'
-  },
-  {
-    key: 'rating',
-    label: 'Rating',
-    render: (row) => h('UBadge', {}, { default: () => row.rating })
-  },
-  {
-    key: 'length',
-    label: 'Length (min)'
-  },
-  {
-    key: 'rental_rate',
-    label: 'Rental Rate',
-    render: (row) => `$${row.rental_rate}`
-  },
-  {
-    key: 'actions',
-    label: '',
-    render: (row) => h('UButton', {
-      color: 'primary',
-      variant: 'ghost',
-      icon: 'i-lucide-eye',
-      onClick: () => viewFilmDetails(row)
-    })
-  }
-]
-
 // Methods
 const loadFilms = async () => {
   loading.value = true
@@ -194,7 +187,16 @@ const loadFilms = async () => {
     }
 
     const response = await api.getFilms(params)
-    films.value = response.films || []
+    // Map raw API film objects to interface matching table columns
+    films.value = (response.films || []).map(f => ({
+      film_id: f.film_id,
+      title: f.title,
+      release_year: f.release_year,
+      rating: f.rating,
+      length: f.length,
+      rental_rate: f.rental_rate,
+      ...f // preserve other properties for detail modal
+    }))
     totalItems.value = response.totalItems || 0
   } catch (error) {
     console.error('Error loading films:', error)

@@ -56,13 +56,13 @@
 				<template #header>
 					<h2 class="text-xl font-semibold">Recent Activity</h2>
 				</template>
-				<UTable v-if="!loading && recentRentals.length > 0"
-					:columns="[
-						{ accessorKey: 'rentalDate', header: 'Date' },
-						{ accessorKey: 'customerName', header: 'Customer' },
-						{ accessorKey: 'amount', header: 'Amount' }
-					]"
-					:rows="recentRentals"
+				<UTable
+					ref="table"
+					v-model:pagination="pagination"
+					:data="recentRentals"
+					:columns="recentRentalsColumns"
+					:pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+					class="flex-1"
 					:ui="{
 						base: 'table-fixed border-separate border-spacing-0',
 						thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
@@ -70,12 +70,26 @@
 						th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
 						td: 'border-b border-(--ui-border)'
 					}"
-				/>
-				<div v-else-if="loading" class="py-4 flex justify-center">
-					<UIcon name="i-lucide-refresh-cw" class="animate-spin h-8 w-8 text-primary" />
-				</div>
-				<div v-else class="py-4 text-center text-gray-500">
-					No recent activity to display
+				>
+					<template #loading-state>
+						<div class="flex items-center justify-center p-6">
+							<UIcon name="i-lucide-refresh-cw" class="animate-spin h-8 w-8 text-primary" />
+						</div>
+					</template>
+					<template #empty-state>
+						<div class="flex flex-col items-center justify-center py-6 px-4">
+							<UIcon name="i-lucide-users" class="text-gray-400 h-10 w-10 mb-2" />
+							<p class="text-sm text-gray-500">No recent activity to display</p>
+						</div>
+					</template>
+				</UTable>
+				<div class="flex justify-center border-t border-(--ui-border) pt-4">
+					<UPagination
+						:default-page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
+						:items-per-page="table?.tableApi?.getState().pagination.pageSize"
+						:total="table?.tableApi?.getFilteredRowModel().rows.length"
+						@update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
+					/>
 				</div>
 			</UCard>
 		</div>
@@ -93,11 +107,27 @@
 	</UContainer>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { ref, computed, onMounted, useTemplateRef } from 'vue'
+import { getPaginationRowModel } from '@tanstack/vue-table'
+import type { TableColumn } from '@nuxt/ui'
 const api = useApi()
+
+// Define Rental row type and column config
+interface Rental { rentalDate: string; customerName: string; amount: string }
+const recentRentalsColumns: TableColumn<Rental>[] = [
+	{ accessorKey: 'rentalDate', header: 'Date' },
+	{ accessorKey: 'customerName', header: 'Customer' },
+	{ accessorKey: 'amount', header: 'Amount' }
+]
+
+// Table ref and pagination state
+const table = useTemplateRef('table')
+const pagination = ref({ pageIndex: 0, pageSize: 5 })
+
 const loading = ref(true)
 const stats = ref({})
-const recentRentals = ref([])
+const recentRentals = ref<Rental[]>([])
 const revenueData = ref([])
 
 // Provide raw data array to BarChart component

@@ -15,17 +15,19 @@
 			</template>
 
 			<UTable
+				ref="table"
+				v-model:pagination="pagination"
+				:data="actors"
 				:columns="actorTableConfig.columns"
-				:rows="actors"
-				:loading="loading"
+				:pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
 				class="mt-4"
-        :ui="{
-          base: 'table-fixed border-separate border-spacing-0',
-          thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
-          tbody: '[&>tr]:last:[&>td]:border-b-0',
-          th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
-          td: 'border-b border-(--ui-border)'
-        }"
+				:ui="{
+					base: 'table-fixed border-separate border-spacing-0',
+					thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
+					tbody: '[&>tr]:last:[&>td]:border-b-0',
+					th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
+					td: 'border-b border-(--ui-border)'
+				}"
 			>
 				<template #loading-state>
 					<div class="flex items-center justify-center p-6">
@@ -41,16 +43,12 @@
 			</UTable>
 
 			<template #footer>
-				<div class="flex justify-between items-center">
-					<p class="text-sm text-gray-500">
-						Showing {{ actors.length }} of {{ totalItems }} actors
-					</p>
+				<div class="flex justify-center border-t border-(--ui-border) pt-4">
 					<UPagination
-						v-model="page"
-						:page-count="pageCount"
-						:total="totalItems"
-						:ui="{ wrapper: 'flex gap-1' }"
-						@update:model-value="loadActors"
+						:default-page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
+						:items-per-page="table?.tableApi?.getState().pagination.pageSize"
+						:total="table?.tableApi?.getFilteredRowModel().rows.length"
+						@update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
 					/>
 				</div>
 			</template>
@@ -69,13 +67,13 @@
 						<UTable
 							:columns="filmographyTableConfig.columns"
 							:rows="selectedActor.films"
-              :ui="{
-                base: 'table-fixed border-separate border-spacing-0',
-                thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
-                tbody: '[&>tr]:last:[&>td]:border-b-0',
-                th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
-                td: 'border-b border-(--ui-border)'
-              }"
+							:ui="{
+								base: 'table-fixed border-separate border-spacing-0',
+								thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
+								tbody: '[&>tr]:last:[&>td]:border-b-0',
+								th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
+								td: 'border-b border-(--ui-border)'
+							}"
 						/>
 					</div>
 					<p v-else class="text-sm text-gray-500">No filmography available</p>
@@ -91,26 +89,36 @@
 	</UContainer>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+<script setup lang="ts">
+import { ref, computed, onMounted, useTemplateRef } from 'vue'
+import type { TableColumn } from '@/types/table'
+import { getPaginationRowModel } from '@tanstack/vue-table'
+
+// Define Actor row type (matching API shape)
+interface Actor {
+  first_name: string
+  last_name: string
+  last_update: string
+  actor_id: number
+}
 
 const api = useApi()
 
 // State
 const actors = ref([])
 const loading = ref(false)
-const page = ref(1)
-const pageSize = ref(10)
-const totalItems = ref(0)
 const searchQuery = ref('')
 const showActorDetails = ref(false)
 const selectedActor = ref(null)
 
-// Computed
-const pageCount = computed(() => Math.ceil(totalItems.value / pageSize.value))
+// Table ref and pagination state
+const table = useTemplateRef('table')
+const pagination = ref({ pageIndex: 0, pageSize: 10 })
 
-// Table columns
+// Computed
+const pageCount = computed(() => Math.ceil(totalItems.value / pagination.value.pageSize))
+
+// Table columns config
 const actorTableConfig = {
   columns: [
     { accessorKey: 'first_name', header: 'First Name' },
@@ -128,7 +136,7 @@ const actorTableConfig = {
         { color: 'primary', variant: 'ghost', icon: 'i-lucide-eye', onClick: () => viewActorDetails(row.original) }
       )
     }
-  ]
+  ] as TableColumn<Actor>[]
 }
 
 const filmographyTableConfig = {
@@ -144,8 +152,8 @@ const loadActors = async () => {
 	loading.value = true
 	try {
 		const params = {
-			page: page.value,
-			size: pageSize.value,
+			page: pagination.value.pageIndex + 1,
+			size: pagination.value.pageSize,
 			name: searchQuery.value || undefined
 		}
 
@@ -171,7 +179,7 @@ const viewActorDetails = async (actor) => {
 }
 
 const debounceSearch = useDebounceFn(() => {
-	page.value = 1
+	pagination.value.pageIndex = 0
 	loadActors()
 }, 300)
 

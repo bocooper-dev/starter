@@ -58,9 +58,9 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <LineChart
-          v-if="!loading && revenueTrends.monthlyRevenue"
-          :data="revenueTrends.monthlyRevenue"
-          date-field="month"
+          v-if="!loading && monthlyRevenueData"
+          :data="monthlyRevenueData"
+          label-field="month"
           value-field="revenue"
           title="Monthly Revenue Trend"
         />
@@ -86,17 +86,7 @@
         </template>
         <UTable
           v-if="!loading && revenueTrends.storeRevenue"
-          :columns="[
-            { accessorKey: 'store_id', header: 'Store ID' },
-            { accessorKey: 'city', header: 'City' },
-            { accessorKey: 'country', header: 'Country' },
-            {
-              id: 'revenue',
-              accessorKey: 'revenue',
-              header: 'Revenue',
-              cell: ({ row }) => `$${parseFloat(String(row.getValue('revenue'))).toFixed(2)}`
-            }
-          ]"
+          :columns="storeRevenueColumns"
           :rows="revenueTrends.storeRevenue"
           :ui="{
             base: 'table-fixed border-separate border-spacing-0',
@@ -121,15 +111,7 @@
           </template>
           <UTable
             v-if="!loading && rentalStats.rentalStats"
-            :columns="[
-              { accessorKey: 'title', header: 'Film Title' },
-              { accessorKey: 'category', header: 'Category' },
-              {
-                id: 'rating', accessorKey: 'rating', header: 'Rating',
-                cell: ({ row }) => h('UBadge', {}, { default: () => row.getValue('rating') })
-              },
-              { accessorKey: 'rental_count', header: 'Rental Count' }
-            ]"
+            :columns="topRentedColumns"
             :rows="rentalStats.rentalStats.slice(0, 5)"
             :ui="{
               base: 'table-fixed border-separate border-spacing-0',
@@ -172,15 +154,7 @@
         </template>
         <UTable
           v-if="!loading && rentalStats.rentalStats"
-          :columns="[
-            { accessorKey: 'title', header: 'Film Title' },
-            { accessorKey: 'category', header: 'Category' },
-            {
-              id: 'rating', accessorKey: 'rating', header: 'Rating',
-              cell: ({ row }) => h('UBadge', {}, { default: () => row.getValue('rating') })
-            },
-            { accessorKey: 'rental_count', header: 'Rental Count' }
-          ]"
+          :columns="filmPerformanceColumns"
           :rows="filteredRentalStats"
           :ui="{
           base: 'table-fixed border-separate border-spacing-0',
@@ -205,19 +179,7 @@
           </template>
           <UTable
             v-if="!loading && customerSpending.topCustomers"
-            :columns="[
-              {
-                id: 'customer',
-                header: 'Customer',
-                cell: ({ row }) => `${row.original.first_name} ${row.original.last_name}`
-              },
-              { accessorKey: 'email', header: 'Email' },
-              {
-                id: 'total_spent', accessorKey: 'total_spent', header: 'Total Spent',
-                cell: ({ row }) => `$${parseFloat(String(row.getValue('total_spent'))).toFixed(2)}`
-              },
-              { accessorKey: 'rental_count', header: 'Rentals' }
-            ]"
+            :columns="topCustomersColumns"
             :rows="customerSpending.topCustomers.slice(0, 5)"
             :ui="{
               base: 'table-fixed border-separate border-spacing-0',
@@ -252,22 +214,7 @@
         </template>
         <UTable
           v-if="!loading && customerSpending.topCustomers"
-          :columns="[
-            {
-              id: 'customer', header: 'Customer',
-              cell: ({ row }) => `${row.original.first_name} ${row.original.last_name}`
-            },
-            { accessorKey: 'email', header: 'Email' },
-            {
-              id: 'total_spent', accessorKey: 'total_spent', header: 'Total Spent',
-              cell: ({ row }) => `$${parseFloat(String(row.getValue('total_spent'))).toFixed(2)}`
-            },
-            { accessorKey: 'rental_count', header: 'Rental Count' },
-            {
-              id: 'avg_per_rental', accessorKey: 'avg_per_rental', header: 'Avg. per Rental',
-              cell: ({ row }) => `$${parseFloat(String(row.getValue('avg_per_rental'))).toFixed(2)}`
-            }
-          ]"
+          :columns="customerValueColumns"
           :rows="customerSpending.topCustomers"
           :ui="{
             base: 'table-fixed border-separate border-spacing-0',
@@ -313,7 +260,16 @@
             </div>
           </div>
 
-          <UDivider />
+          <div class="border-b border-(--ui-border)" />
+
+          <div class="text-sm text-(--ui-text-muted)">
+            <p>Ask the AI to analyze the data. For example:</p>
+            <ul class="list-disc pl-5">
+              <li>What are the most profitable film categories?</li>
+              <li>Which customers have the highest spending?</li>
+              <li>What is the average rental duration by category?</li>
+            </ul>
+          </div>
 
           <div v-if="aiLoading" class="flex justify-center py-8">
             <UIcon name="i-lucide-refresh-cw" class="animate-spin size-8 text-(--ui-primary)" />
@@ -329,20 +285,150 @@
   </UContainer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import type { TableColumn } from '@nuxt/ui'
 import { marked } from 'marked'
 import { useDebounceFn } from '@vueuse/core'
 import { format, parseISO } from 'date-fns'
 
 const api = useApi()
 
-// State
+// Row data interfaces
+interface StoreRevenue { store_id: number; city: string; country: string; revenue: string }
+interface RentalStat { title: string; category: string; rating: string; rental_count: number }
+interface CustomerSpending { first_name: string; last_name: string; email: string; total_spent: string; rental_count: number; avg_per_rental?: string }
+
+// API response shapes
+interface RevenueTrendsData {
+  monthlyRevenue: Record<string, any>[]
+  categoryRevenue: Record<string, any>[]
+  storeRevenue: StoreRevenue[]
+}
+interface RentalStatsData {
+  rentalStats: RentalStat[]
+  rentalDuration: Record<string, any>[]
+}
+interface CustomerData {
+  topCustomers: CustomerSpending[]
+  spendingByCountry: Record<string, any>[]
+}
+
+// Table column configs
+const storeRevenueColumns: TableColumn<StoreRevenue>[] = [
+  { accessorKey: 'store_id', header: 'Store ID' },
+  { accessorKey: 'city', header: 'City' },
+  { accessorKey: 'country', header: 'Country' },
+  { id: 'revenue', accessorKey: 'revenue', header: 'Revenue', cell: ({ row }) => `$${parseFloat(String(row.getValue('revenue'))).toFixed(2)}` }
+]
+
+const topRentedColumns: TableColumn<RentalStat>[] = [
+  { accessorKey: 'title', header: 'Film Title' },
+  { accessorKey: 'category', header: 'Category' },
+  { id: 'rating', accessorKey: 'rating', header: 'Rating', cell: ({ row }) => h('UBadge', {}, { default: () => row.getValue('rating') }) },
+  { accessorKey: 'rental_count', header: 'Rental Count' }
+]
+
+const filmPerformanceColumns = topRentedColumns // same as top rented stats
+
+const topCustomersColumns: TableColumn<CustomerSpending>[] = [
+  { id: 'customer', header: 'Customer', cell: ({ row }) => `${(row.original as CustomerSpending).first_name} ${(row.original as CustomerSpending).last_name}` },
+  { accessorKey: 'email', header: 'Email' },
+  { id: 'total_spent', accessorKey: 'total_spent', header: 'Total Spent', cell: ({ row }) => `$${parseFloat(String(row.getValue('total_spent'))).toFixed(2)}` },
+  { accessorKey: 'rental_count', header: 'Rentals' }
+]
+
+const customerValueColumns: TableColumn<CustomerSpending>[] = [
+  ...topCustomersColumns,
+  { id: 'avg_per_rental', accessorKey: 'avg_per_rental', header: 'Avg. per Rental', cell: ({ row }) => `$${parseFloat(String(row.getValue('avg_per_rental'))).toFixed(2)}` }
+]
+
+// Table Data
+const monthlyRevenueData = computed(() => {
+  return revenueTrends.value.monthlyRevenue?.map((item) => {
+    const { month, revenue } = item as { month: string; revenue: string }
+    return {
+      month: format(parseISO(month), 'MMMM'),
+      revenue: parseFloat(revenue).toFixed(2)
+    }
+  })
+})
+
+const categoryRevenueData = computed(() => {
+  return revenueTrends.value.categoryRevenue?.map((item) => {
+    const { category, revenue } = item as { category: string; revenue: string }
+    return {
+      ...item,
+      category: category,
+      revenue: parseFloat(revenue).toFixed(2)
+    }
+  })
+})
+const storeRevenueData = computed(() => {
+  return revenueTrends.value.storeRevenue?.map((item) => {
+    const { store_id, city, country, revenue } = item as StoreRevenue
+    return {
+      ...item,
+      store_id: store_id,
+      city: city,
+      country: country,
+      revenue: parseFloat(revenue).toFixed(2)
+    }
+  })
+})
+const rentalDurationData = computed(() => {
+  return rentalStats.value.rentalDuration?.map((item) => {
+    const { category, avg_rental_days } = item as { category: string; avg_rental_days: string }
+    return {
+      ...item,
+      category: category,
+      avg_rental_days: parseFloat(avg_rental_days).toFixed(2)
+    }
+  })
+})
+const rentalStatsData = computed(() => {
+  return rentalStats.value.rentalStats?.map((item) => {
+    const { title, category, rating, rental_count } = item as RentalStat
+    return {
+      ...item,
+      title: title,
+      category: category,
+      rating: rating,
+      rental_count: rental_count
+    }
+  })
+})
+const spendingByCountryData = computed(() => {
+  return customerSpending.value.spendingByCountry?.map((item) => {
+    const { country, total_revenue } = item as { country: string; total_revenue: string }
+    return {
+      ...item,
+      country: country,
+      total_revenue: parseFloat(total_revenue).toFixed(2)
+    }
+  })
+})
+const topCustomerSpendingData = computed(() => {
+  return customerSpending.value.topCustomers?.map((item) => {
+    const { first_name, last_name, email, total_spent, rental_count } = item as CustomerSpending
+    return {
+      ...item,
+      first_name: first_name,
+      last_name: last_name,
+      email: email,
+      total_spent: parseFloat(total_spent).toFixed(2),
+      rental_count: rental_count
+    }
+  })
+})
+
+
+// State with typed initial values
 const loading = ref(true)
 const activeTab = ref('revenue')
-const revenueTrends = ref({})
-const rentalStats = ref({})
-const customerSpending = ref({})
+const revenueTrends = ref<RevenueTrendsData>({ monthlyRevenue: [], categoryRevenue: [], storeRevenue: [] })
+const rentalStats = ref<RentalStatsData>({ rentalStats: [], rentalDuration: [] })
+const customerSpending = ref<CustomerData>({ topCustomers: [], spendingByCountry: [] })
 
 // AI Analysis state
 const aiQuery = ref('')
@@ -354,7 +440,13 @@ const aiResult = ref('')
 const filmSearchQuery = ref('')
 
 // Tabs
-const tabs = [
+interface Tab {
+  id: string
+  label: string
+  icon: string
+}
+
+const tabs: Tab[] = [
   { id: 'revenue', label: 'Revenue Analysis', icon: 'i-lucide-dollar-sign' },
   { id: 'rentals', label: 'Rental Analysis', icon: 'i-lucide-film' },
   { id: 'customers', label: 'Customer Analysis', icon: 'i-lucide-users' },
@@ -372,7 +464,7 @@ const dataTypeOptions = [
 ]
 
 // Helper function for formatting numbers
-const formatNumber = (value) => {
+const formatNumber = (value: number) => {
   return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' }).format(value)
 }
 
@@ -419,9 +511,9 @@ const loadData = async () => {
       api.getCustomerSpending()
     ])
 
-    revenueTrends.value = revenueTrendsData
-    rentalStats.value = rentalStatsData
-    customerSpending.value = customerSpendingData
+    revenueTrends.value = revenueTrendsData as RevenueTrendsData
+    rentalStats.value = rentalStatsData as RentalStatsData
+    customerSpending.value = customerSpendingData as CustomerData
   } catch (error) {
     console.error('Error loading analytics data:', error)
   } finally {

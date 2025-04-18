@@ -87,13 +87,12 @@ useSeoMeta({
         </p>
       </template>
 
-      <template #center>
-        <p class="text-sm text-(--ui-text-muted)">
+      <template #right>
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-(--ui-text-muted)">
           MPC Dashboard for Pagila Database &copy; {{ new Date().getFullYear() }}
         </p>
-      </template>
-
-      <template #right>
+        </div>
         <UButton
           to="https://github.com/nuxt-ui-pro/starter"
           target="_blank"
@@ -102,8 +101,7 @@ useSeoMeta({
           color="neutral"
           variant="ghost"
         />
-      </template>
-
+        </template>
     </UFooter>
   </UApp>
 </template>
