@@ -1,64 +1,143 @@
 <template>
-  <div>
-    <UPageHero
-      title="Nuxt UI Pro - Starter"
-      description="Nuxt UI Pro is a collection of premium components built on top of Nuxt UI to create beautiful & responsive applications in minutes."
-      :links="[{
-        label: 'Get started',
-        to: 'https://ui.nuxt.com/getting-started/installation/pro/nuxt',
-        target: '_blank',
-        trailingIcon: 'i-lucide-arrow-right',
-        size: 'xl'
-      }, {
-        label: 'Use this template',
-        to: 'https://github.com/nuxt-ui-pro/starter',
-        target: '_blank',
-        icon: 'i-simple-icons-github',
-        size: 'xl',
-        color: 'neutral',
-        variant: 'subtle'
-      }]"
-    />
+	<UContainer class="py-8">
+		<UCard class="mb-8">
+			<template #header>
+				<div class="flex justify-between items-center">
+					<h1 class="text-2xl font-bold">Welcome to MPC Dashboard</h1>
+				</div>
+			</template>
+			<div class="prose max-w-none dark:prose-invert">
+				<p>
+					This dashboard provides insights into the Pagila DVD rental database.
+					It demonstrates the integration of a PostgreSQL database with a Nuxt frontend
+					using Claude for automated analytics and page generation.
+				</p>
+				<p>
+					Use the navigation bar to explore different sections of the dashboard:
+				</p>
+				<ul>
+					<li><strong>Films</strong> - Browse and analyze film data</li>
+					<li><strong>Actors</strong> - Explore actor information and performance</li>
+					<li><strong>Analytics</strong> - Deep dive into rental statistics and revenue analysis</li>
+					<li><strong>Generate</strong> - Create custom analytics and pages using Claude</li>
+				</ul>
+			</div>
+		</UCard>
 
-    <UPageSection
-      id="features"
-      title="The freedom to build anything"
-      description="Nuxt UI Pro ships with an extensive set of advanced components that cover a wide range of use-cases. Carefully crafted to reduce boilerplate code without sacrificing flexibility."
-      :features="[{
-        icon: 'i-lucide-wrench',
-        title: 'Fully customizable',
-        description: 'Customize any component through the App Config or fine-tune specific instances with the ui prop, just like Nuxt UI.'
-      }, {
-        icon: 'i-lucide-square-stack',
-        title: 'Powerful slot system',
-        description: 'Take full control of component layouts and content with Vue\'s comprehensive slot system for maximum flexibility.'
-      }, {
-        icon: 'i-lucide-smartphone',
-        title: 'Mobile-first & responsive',
-        description: 'Built with a mobile-first approach, all components automatically adapt to any screen size while maintaining a polished look.'
-      }]"
-    />
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+			<UCard>
+				<template #header>
+					<h2 class="text-xl font-semibold">Quick Stats</h2>
+				</template>
+				<div class="space-y-4" v-if="!loading">
+					<div class="flex justify-between items-center">
+						<span>Total Films:</span>
+						<UBadge size="lg" color="primary">{{ stats.filmCount || 'N/A' }}</UBadge>
+					</div>
+					<div class="flex justify-between items-center">
+						<span>Total Actors:</span>
+						<UBadge size="lg" color="info">{{ stats.actorCount || 'N/A' }}</UBadge>
+					</div>
+					<div class="flex justify-between items-center">
+						<span>Total Customers:</span>
+						<UBadge size="lg" color="success">{{ stats.customerCount || 'N/A' }}</UBadge>
+					</div>
+					<div class="flex justify-between items-center">
+						<span>Total Revenue:</span>
+						<UBadge size="lg" color="warning">${{ stats.totalRevenue?.toFixed(2) || 'N/A' }}</UBadge>
+					</div>
+				</div>
+				<div v-else class="py-4 flex justify-center">
+					<UIcon name="i-lucide-refresh-cw" class="animate-spin h-8 w-8 text-primary" />
+				</div>
+			</UCard>
 
-    <UPageSection>
-      <UPageCTA
-        title="Start with Nuxt UI Pro today!"
-        description="Nuxt UI Pro is free in development, but you need a license to use it in production."
-        variant="subtle"
-        :links="[{
-          label: 'Buy now',
-          to: 'https://ui.nuxt.com/pro/purchase',
-          target: '_blank',
-          icon: 'i-lucide-shopping-cart',
-          color: 'neutral'
-        }, {
-          label: 'License',
-          to: 'https://ui.nuxt.com/getting-started/license',
-          target: '_blank',
-          trailingIcon: 'i-lucide-circle-help',
-          color: 'neutral',
-          variant: 'subtle'
-        }]"
-      />
-    </UPageSection>
-  </div>
+			<UCard>
+				<template #header>
+					<h2 class="text-xl font-semibold">Recent Activity</h2>
+				</template>
+				<UTable v-if="!loading && recentRentals.length > 0"
+					:columns="[
+						{ accessorKey: 'rentalDate', header: 'Date' },
+						{ accessorKey: 'customerName', header: 'Customer' },
+						{ accessorKey: 'amount', header: 'Amount' }
+					]"
+					:rows="recentRentals"
+					:ui="{
+						base: 'table-fixed border-separate border-spacing-0',
+						thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
+						tbody: '[&>tr]:last:[&>td]:border-b-0',
+						th: 'first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
+						td: 'border-b border-(--ui-border)'
+					}"
+				/>
+				<div v-else-if="loading" class="py-4 flex justify-center">
+					<UIcon name="i-lucide-refresh-cw" class="animate-spin h-8 w-8 text-primary" />
+				</div>
+				<div v-else class="py-4 text-center text-gray-500">
+					No recent activity to display
+				</div>
+			</UCard>
+		</div>
+
+		<div v-if="!loading && revenueData.length > 0">
+			<UCard>
+				<template #header>
+					<h2 class="text-xl font-semibold">Revenue by Category</h2>
+				</template>
+				<div class="h-80">
+					<BarChart :data="chartData" />
+				</div>
+			</UCard>
+		</div>
+	</UContainer>
 </template>
+
+<script setup>
+const api = useApi()
+const loading = ref(true)
+const stats = ref({})
+const recentRentals = ref([])
+const revenueData = ref([])
+
+// Provide raw data array to BarChart component
+const chartData = computed(() => revenueData.value)
+
+async function fetchDashboardData() {
+	loading.value = true
+	try {
+		// Get quick stats
+		const films = await api.getFilms({ page: 1, size: 1 })
+		const actors = await api.getActors({ page: 1, size: 1 })
+		const customers = await api.getCustomers({ page: 1, size: 1 })
+		const revenueTrends = await api.getRevenueTrends()
+
+		stats.value = {
+			filmCount: films.totalItems || 0,
+			actorCount: actors.totalItems || 0,
+			customerCount: customers.totalItems || 0,
+			totalRevenue: revenueTrends.categoryRevenue.reduce((sum, item) => sum + parseFloat(item.revenue), 0)
+		}
+
+		// Get revenue by category data for chart
+		revenueData.value = revenueTrends.categoryRevenue.slice(0, 10)
+
+		// Format recent rentals
+		// This is mocked as we don't have a direct endpoint for this
+		recentRentals.value = [
+			{ rentalDate: '2025-04-15', customerName: 'John Smith', amount: '$5.99' },
+			{ rentalDate: '2025-04-14', customerName: 'Mary Johnson', amount: '$4.99' },
+			{ rentalDate: '2025-04-14', customerName: 'Robert Brown', amount: '$2.99' },
+			{ rentalDate: '2025-04-13', customerName: 'Susan Davis', amount: '$3.99' }
+		]
+	} catch (error) {
+		console.error('Error fetching dashboard data:', error)
+	} finally {
+		loading.value = false
+	}
+}
+
+onMounted(() => {
+	fetchDashboardData()
+})
+</script>

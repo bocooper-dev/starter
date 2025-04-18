@@ -30,27 +30,51 @@ useSeoMeta({
     <UHeader>
       <template #left>
         <NuxtLink to="/">
-          <LogoPro class="w-auto h-6 shrink-0" />
+          <UButton
+            to="/"
+            variant="ghost"
+            class="text-xl font-bold text-gray-900 dark:text-white"
+            icon="i-lucide-bar-chart"
+          >
+            MPC Dashboard
+          </UButton>
         </NuxtLink>
-
-        <TemplateMenu />
       </template>
 
       <template #right>
-        <UColorModeButton />
-
         <UButton
-          to="https://github.com/nuxt-ui-pro/starter"
-          target="_blank"
-          icon="i-simple-icons-github"
-          aria-label="GitHub"
-          color="neutral"
+          to="/films"
+          icon="i-lucide-film"
           variant="ghost"
-        />
+        >
+          Films
+        </UButton>
+        <UButton
+          to="/actors"
+          icon="i-lucide-users"
+          variant="ghost"
+        >
+          Actors
+        </UButton>
+        <UButton
+          to="/analytics"
+          icon="i-lucide-bar-chart"
+          variant="ghost"
+        >
+          Analytics
+        </UButton>
+        <UButton
+          to="/generate"
+          icon="i-lucide-star"
+          variant="ghost"
+        >
+          Generate
+        </UButton>
+        <UColorModeButton />
       </template>
     </UHeader>
 
-    <UMain>
+    <UMain class="pb-18">
       <NuxtPage />
     </UMain>
 
@@ -60,6 +84,12 @@ useSeoMeta({
       <template #left>
         <p class="text-sm text-(--ui-text-muted)">
           Copyright © {{ new Date().getFullYear() }}
+        </p>
+      </template>
+
+      <template #center>
+        <p class="text-sm text-(--ui-text-muted)">
+          MPC Dashboard for Pagila Database &copy; {{ new Date().getFullYear() }}
         </p>
       </template>
 
@@ -73,6 +103,7 @@ useSeoMeta({
           variant="ghost"
         />
       </template>
+
     </UFooter>
   </UApp>
 </template>
